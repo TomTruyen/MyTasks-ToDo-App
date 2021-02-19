@@ -1,3 +1,4 @@
+import 'package:simple_todo/models/Todo.dart';
 import 'package:sqflite/sqflite.dart';
 
 Future<Database> setupDatabase() async {
@@ -9,7 +10,7 @@ Future<Database> setupDatabase() async {
     Database db = await openDatabase(path, version: 1,
         onCreate: (Database db, int version) async {
       await db.execute(
-        'CREATE TABLE todos (id INTEGER PRIMARY KEY, title TEXT, completed INTEGER)',
+        'CREATE TABLE todos (id INTEGER PRIMARY KEY UNIQUE, title TEXT, completed INTEGER, orderIndex INTEGER UNIQUE)',
         [],
       );
     });
@@ -23,7 +24,15 @@ Future<Database> setupDatabase() async {
 
 Future<List> getTodos(Database db) async {
   try {
-    List<Map> todos = await db.rawQuery('SELECT * FROM todos');
+    List<Todo> todos = [];
+
+    List<Map> dbTodos = await db.rawQuery(
+      'SELECT * FROM todos ORDER BY orderIndex ASC',
+    );
+
+    for (int i = 0; i < dbTodos.length; i++) {
+      todos.add(Todo.fromJSON(dbTodos[i]));
+    }
 
     return todos;
   } catch (e) {
@@ -35,8 +44,8 @@ Future<List> getTodos(Database db) async {
 Future addTodo(Database db, Map args) async {
   try {
     await db.rawInsert(
-      'INSERT INTO todos (title, completed) VALUES (?, ?)',
-      [args['title'], args['completed']],
+      'INSERT INTO todos (title, completed, orderIndex) VALUES (?, ?, ?)',
+      [args['title'], args['completed'], args['orderIndex']],
     );
 
     return true;
@@ -84,6 +93,26 @@ Future toggleComplete(Database db, Map args) async {
     return true;
   } catch (e) {
     print("Complete Todo Error: $e");
+    return null;
+  }
+}
+
+Future reorderTodos(Database db, List<Todo> todos, int startIndex) async {
+  try {
+    Batch batch = db.batch();
+
+    for (int i = startIndex; i < todos.length; i++) {
+      batch.rawUpdate('UPDATE todos SET orderIndex = ? WHERE id = ?', [
+        todos[i].orderIndex,
+        todos[i].id,
+      ]);
+    }
+
+    await batch.commit(noResult: true, continueOnError: true);
+
+    return true;
+  } catch (e) {
+    print("Reorder Todo Error: $e");
     return null;
   }
 }

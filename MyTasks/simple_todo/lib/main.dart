@@ -4,6 +4,8 @@ import 'package:sqflite/sqflite.dart';
 
 import 'package:simple_todo/services/db.dart';
 import 'package:simple_todo/ad_manager.dart';
+import 'package:simple_todo/models/Todo.dart';
+import 'package:simple_todo/CustomReorderablesSliverList.dart';
 
 void main() {
   runApp(MyApp());
@@ -33,7 +35,7 @@ class _MyHomePageState extends State<MyHomePage> {
   int editCount = 0; //used for deciding when to display ad
 
   Database db;
-  List<Map> todos = [];
+  List<Todo> todos = [];
 
   InterstitialAd _interstitialAd;
 
@@ -88,7 +90,7 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       Database _db = await setupDatabase();
-      List<Map> _todos = await getTodos(_db);
+      List<Todo> _todos = await getTodos(_db);
 
       if (_db != null && _todos != null) {
         setState(() {
@@ -153,11 +155,11 @@ class _MyHomePageState extends State<MyHomePage> {
   void displayEditBottomSheet(
     BuildContext context,
     Function updateTodoState,
-    Map dbArgs,
+    Todo todo,
   ) {
     final _formKey = GlobalKey<FormState>();
 
-    String title = dbArgs['title'];
+    String title = todo.title ?? "";
 
     showModalBottomSheet(
       shape: RoundedRectangleBorder(
@@ -186,7 +188,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: <Widget>[
                         TextFormField(
-                          initialValue: dbArgs['title'],
+                          initialValue: title,
                           onChanged: (String value) {
                             setState(() {
                               title = value;
@@ -240,9 +242,9 @@ class _MyHomePageState extends State<MyHomePage> {
                             if (title != "") {
                               if (_formKey.currentState.validate()) {
                                 Map args = {
-                                  'id': dbArgs['id'],
+                                  'id': todo.id,
                                   'title': title,
-                                  'completed': dbArgs['completed'],
+                                  'completed': todo.completed,
                                 };
 
                                 dynamic result = await editTodo(db, args);
@@ -402,158 +404,183 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: true,
-      appBar: AppBar(
-        toolbarHeight: 80.0,
-        backgroundColor: Colors.grey[100],
-        elevation: 0.0,
-        title: Center(
-          child: Text(
-            "All Tasks",
-            style: TextStyle(
-              color: Colors.grey[900],
-              fontWeight: FontWeight.w400,
+      body: CustomScrollView(
+        physics: BouncingScrollPhysics(),
+        slivers: [
+          SliverAppBar(
+            title: Center(
+              child: Text(
+                "All Tasks",
+                style: TextStyle(
+                  color: Colors.grey[900],
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
             ),
+            elevation: 0.0,
+            toolbarHeight: 80.0,
+            backgroundColor: Colors.grey[50],
           ),
-        ),
-      ),
-      body: Container(
-        padding: EdgeInsets.all(8.0),
-        color: Colors.grey[100],
-        child: Center(
-          child: todos.length > 0
-              ? ListView.builder(
-                  physics: BouncingScrollPhysics(),
-                  itemBuilder: (BuildContext context, int index) {
-                    if (index == todos.length) return SizedBox(height: 80.0);
-                    return Dismissible(
-                      key: ObjectKey(todos[index]),
-                      background: editSwipeBackground(),
-                      secondaryBackground: deleteSwipeBackground(),
-                      confirmDismiss: (DismissDirection direction) async {
-                        if (direction == DismissDirection.endToStart) {
-                          // Delete
-                          Map args = {
-                            'id': todos[index]['id'],
-                          };
-
-                          dynamic result = await deleteTodo(db, args);
-
-                          if (result != null) {
-                            List _todos = await getTodos(db);
-
-                            if (_todos != null) {
-                              updateTodoState(_todos);
-                            }
-                          }
-
-                          return true;
-                        } else if (direction == DismissDirection.startToEnd) {
-                          // Edit
-                          editCount++;
-                          onNewTask(todos.length, true);
-                          displayEditBottomSheet(
-                            context,
-                            updateTodoState,
-                            todos[index],
-                          );
-
-                          return false;
-                        }
-
-                        return false;
-                      },
-                      child: Container(
-                        alignment: Alignment.centerLeft,
+          todos.length <= 0
+              ? SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Text("No Tasks."),
+                  ),
+                )
+              : CustomReorderableSliverList(
+                  delegate: ReorderableSliverChildBuilderDelegate(
+                    (BuildContext context, int index) {
+                      return Container(
+                        height: 70.0,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.all(
                             Radius.circular(50.0),
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.grey.withOpacity(0.5),
-                              spreadRadius: 2,
-                              blurRadius: 5,
-                            )
-                          ],
-                          color: Colors.white,
                         ),
-                        height: 60.0,
-                        margin: EdgeInsets.all(8.0),
-                        padding: EdgeInsets.fromLTRB(24.0, 0.0, 16.0, 0.0),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: <Widget>[
-                            Expanded(
-                              child: Text(
-                                todos[index]['title'],
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  decoration: todos[index]['completed'] == 1
-                                      ? TextDecoration.lineThrough
-                                      : null,
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 16.0,
-                                ),
-                              ),
-                            ),
-                            InkWell(
-                              child: CircleAvatar(
-                                radius: 15.0,
-                                backgroundColor: todos[index]['completed'] == 1
-                                    ? Color.fromRGBO(35, 220, 160, 1)
-                                    : Colors.grey[900],
-                                child: CircleAvatar(
-                                  radius: 14.0,
-                                  backgroundColor:
-                                      todos[index]['completed'] == 1
-                                          ? Color.fromRGBO(35, 220, 160, 1)
-                                          : Colors.white,
-                                  foregroundColor:
-                                      todos[index]['completed'] == 1
-                                          ? Colors.white
-                                          : Colors.grey[900],
-                                  child: Center(
-                                    child: Icon(
-                                      Icons.check,
-                                      size: 20.0,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              onTap: () async {
+                        child: Card(
+                          elevation: 5.0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(50.0),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: Dismissible(
+                            key: ObjectKey(todos[index]),
+                            background: editSwipeBackground(),
+                            secondaryBackground: deleteSwipeBackground(),
+                            confirmDismiss: (DismissDirection direction) async {
+                              if (direction == DismissDirection.endToStart) {
+                                // Delete
                                 Map args = {
-                                  'id': todos[index]['id'],
-                                  'completed':
-                                      todos[index]['completed'] == 0 ? 1 : 0,
+                                  'id': todos[index].id,
                                 };
 
-                                dynamic result = await toggleComplete(db, args);
+                                dynamic result = await deleteTodo(db, args);
 
                                 if (result != null) {
-                                  dynamic _todos = await getTodos(db);
+                                  List _todos = await getTodos(db);
 
                                   if (_todos != null) {
                                     updateTodoState(_todos);
                                   }
                                 }
-                              },
+
+                                return true;
+                              } else if (direction ==
+                                  DismissDirection.startToEnd) {
+                                // Edit
+                                editCount++;
+                                displayEditBottomSheet(
+                                  context,
+                                  updateTodoState,
+                                  todos[index],
+                                );
+
+                                return false;
+                              }
+
+                              return false;
+                            },
+                            child: Container(
+                              alignment: Alignment.centerLeft,
+                              padding:
+                                  EdgeInsets.fromLTRB(24.0, 0.0, 16.0, 0.0),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: <Widget>[
+                                  Expanded(
+                                    child: Text(
+                                      todos[index].title,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        decoration: todos[index].completed == 1
+                                            ? TextDecoration.lineThrough
+                                            : null,
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 16.0,
+                                      ),
+                                    ),
+                                  ),
+                                  InkWell(
+                                    child: CircleAvatar(
+                                      radius: 15.0,
+                                      backgroundColor:
+                                          todos[index].completed == 1
+                                              ? Color.fromRGBO(35, 220, 160, 1)
+                                              : Colors.grey[900],
+                                      child: CircleAvatar(
+                                        radius: 14.0,
+                                        backgroundColor: todos[index]
+                                                    .completed ==
+                                                1
+                                            ? Color.fromRGBO(35, 220, 160, 1)
+                                            : Colors.white,
+                                        foregroundColor:
+                                            todos[index].completed == 1
+                                                ? Colors.white
+                                                : Colors.grey[900],
+                                        child: Center(
+                                          child: Icon(
+                                            Icons.check,
+                                            size: 20.0,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    onTap: () async {
+                                      Map args = {
+                                        'id': todos[index].id,
+                                        'completed':
+                                            todos[index].completed == 0 ? 1 : 0,
+                                      };
+
+                                      dynamic result =
+                                          await toggleComplete(db, args);
+
+                                      if (result != null) {
+                                        dynamic _todos = await getTodos(db);
+
+                                        if (_todos != null) {
+                                          updateTodoState(_todos);
+                                        }
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-                    );
+                      );
+                    },
+                    childCount: todos.length,
+                  ),
+                  onReorder: (int oldIndex, int newIndex) async {
+                    List<Todo> _todos = List.of(todos);
+
+                    Todo todo = _todos.removeAt(oldIndex);
+                    _todos.insert(newIndex, todo);
+
+                    for (int i = 0; i < _todos.length; i++) {
+                      _todos[i].orderIndex = i;
+                    }
+
+                    dynamic result = await reorderTodos(db, todos, newIndex);
+
+                    if (result != null) {
+                      setState(() {
+                        todos = _todos;
+                      });
+                    }
                   },
-                  itemCount: todos.length + 1,
-                )
-              : Text("No Tasks."),
-        ),
+                ),
+        ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: FloatingActionButton(
         backgroundColor: Color.fromRGBO(0, 175, 255, 1),
         child: Icon(Icons.add),
         onPressed: () {
-          onNewTask(todos.length, false);
           displayAddBottomSheet(context, updateTodoState);
         },
       ),
