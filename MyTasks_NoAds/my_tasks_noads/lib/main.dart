@@ -177,12 +177,14 @@ class _MyHomePageState extends State<MyHomePage> {
                         SizedBox(
                           height: 16.0,
                         ),
-                        FlatButton(
-                          height: 48.0,
-                          minWidth: MediaQuery.of(context).size.width,
-                          color: Color.fromRGBO(0, 175, 255, 1),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(50.0),
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            minimumSize:
+                                Size(MediaQuery.of(context).size.width, 48.0),
+                            backgroundColor: Color.fromRGBO(0, 175, 255, 1),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(50.0),
+                            ),
                           ),
                           child: Text(
                             "Edit",
@@ -294,12 +296,14 @@ class _MyHomePageState extends State<MyHomePage> {
                     SizedBox(
                       height: 16.0,
                     ),
-                    FlatButton(
-                      height: 48.0,
-                      minWidth: MediaQuery.of(context).size.width,
-                      color: Color.fromRGBO(0, 175, 255, 1),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(50.0),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        minimumSize:
+                            Size(MediaQuery.of(context).size.width, 48.0),
+                        backgroundColor: Color.fromRGBO(0, 175, 255, 1),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(50.0),
+                        ),
                       ),
                       child: Text(
                         "Add",
