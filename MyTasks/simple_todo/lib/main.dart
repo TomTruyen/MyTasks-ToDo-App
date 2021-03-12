@@ -1,13 +1,15 @@
-import 'package:firebase_admob/firebase_admob.dart';
 import 'package:flutter/material.dart';
-import 'package:sqflite/sqflite.dart';
-
-import 'package:simple_todo/services/db.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:simple_todo/CustomReorderablesSliverList.dart';
 import 'package:simple_todo/ad_manager.dart';
 import 'package:simple_todo/models/Todo.dart';
-import 'package:simple_todo/CustomReorderablesSliverList.dart';
+import 'package:simple_todo/services/db.dart';
+import 'package:sqflite/sqflite.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  MobileAds.instance.initialize();
+
   runApp(MyApp());
 }
 
@@ -38,39 +40,44 @@ class _MyHomePageState extends State<MyHomePage> {
   List<Todo> todos = [];
 
   InterstitialAd _interstitialAd;
+  bool adLoaded = false;
 
-  bool _isInterstitialAdReady;
-
-  void _loadInterstitialAd() {
-    _interstitialAd.load();
+  InterstitialAd getInterstitial() {
+    return InterstitialAd(
+      adUnitId: AdManager.interstitialAdUnitId,
+      request: AdRequest(),
+      listener: AdListener(
+        onAdLoaded: (Ad ad) {
+          setState(() {
+            adLoaded = true;
+          });
+        },
+      ),
+    );
   }
 
-  void _onIntersistialAdEvent(MobileAdEvent event) {
-    switch (event) {
-      case MobileAdEvent.loaded:
-        _isInterstitialAdReady = true;
-        break;
-      case MobileAdEvent.failedToLoad:
-        _isInterstitialAdReady = false;
-        break;
-      case MobileAdEvent.closed:
-        break;
-      default:
-    }
+  void loadIntersistialAd() {
+    _interstitialAd?.dispose();
+
+    _interstitialAd = getInterstitial()..load();
   }
 
-  void onNewTask(int taskCount, bool isEdit) {
+  void onNewTask(int taskCount, bool isEdit) async {
     if (isEdit) {
       if (editCount % 2 != 0) {
-        _loadInterstitialAd();
+        if (adLoaded) {
+          await _interstitialAd.show();
+          adLoaded = false;
+          loadIntersistialAd();
+        }
       }
     } else if (taskCount % 2 != 0) {
-      _loadInterstitialAd();
+      if (adLoaded) {
+        await _interstitialAd.show();
+        adLoaded = false;
+        loadIntersistialAd();
+      }
     }
-  }
-
-  Future<void> _initAdMob() {
-    return FirebaseAdMob.instance.initialize(appId: AdManager.appId);
   }
 
   void updateTodoState(List _todos) {
@@ -81,13 +88,10 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   void initState() {
-    _isInterstitialAdReady = false;
-    _interstitialAd = InterstitialAd(
-      adUnitId: AdManager.interstitialAdUnitId,
-      listener: _onIntersistialAdEvent,
-    );
-
     super.initState();
+
+    loadIntersistialAd();
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       Database _db = await setupDatabase();
       List<Todo> _todos = await getTodos(_db);
@@ -156,6 +160,7 @@ class _MyHomePageState extends State<MyHomePage> {
     BuildContext context,
     Function updateTodoState,
     Todo todo,
+    int todoLength,
   ) {
     final _formKey = GlobalKey<FormState>();
 
@@ -243,6 +248,8 @@ class _MyHomePageState extends State<MyHomePage> {
                           onPressed: () async {
                             if (title != "") {
                               if (_formKey.currentState.validate()) {
+                                onNewTask(todoLength, true);
+
                                 Map args = {
                                   'id': todo.id,
                                   'title': title,
@@ -262,10 +269,6 @@ class _MyHomePageState extends State<MyHomePage> {
                                     Navigator.of(context).pop();
                                   }
                                 }
-
-                                if (_isInterstitialAdReady) {
-                                  _interstitialAd.show();
-                                }
                               }
                             } else if (Navigator.canPop(context)) {
                               Navigator.of(context).pop();
@@ -284,7 +287,8 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  void displayAddBottomSheet(BuildContext context, Function updateTodoState) {
+  void displayAddBottomSheet(
+      BuildContext context, Function updateTodoState, int todoLength) {
     final _formKey = GlobalKey<FormState>();
 
     String title = "";
@@ -366,6 +370,8 @@ class _MyHomePageState extends State<MyHomePage> {
                       onPressed: () async {
                         if (title != "") {
                           if (_formKey.currentState.validate()) {
+                            onNewTask(todoLength, false);
+
                             Map args = {
                               'title': title,
                               'completed': 0,
@@ -385,7 +391,7 @@ class _MyHomePageState extends State<MyHomePage> {
                               }
                             }
 
-                            if (_isInterstitialAdReady) {
+                            if (adLoaded) {
                               _interstitialAd.show();
                             }
                           }
@@ -478,6 +484,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                   context,
                                   updateTodoState,
                                   todos[index],
+                                  todos.length,
                                 );
 
                                 return false;
@@ -585,7 +592,11 @@ class _MyHomePageState extends State<MyHomePage> {
         backgroundColor: Color.fromRGBO(0, 175, 255, 1),
         child: Icon(Icons.add),
         onPressed: () {
-          displayAddBottomSheet(context, updateTodoState);
+          displayAddBottomSheet(
+            context,
+            updateTodoState,
+            todos.length,
+          );
         },
       ),
     );
