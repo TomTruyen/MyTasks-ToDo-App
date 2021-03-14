@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:my_tasks_noads/models/Todo.dart';
-import 'package:sqflite/sqflite.dart';
-
-import 'package:my_tasks_noads/services/db.dart';
 import 'package:my_tasks_noads/CustomReorderablesSliverList.dart';
+import 'package:my_tasks_noads/models/Todo.dart';
+import 'package:my_tasks_noads/services/db.dart';
+import 'package:sqflite/sqflite.dart';
 
 void main() {
   runApp(MyApp());
@@ -35,10 +34,30 @@ class _MyHomePageState extends State<MyHomePage> {
   Database db;
   List<Todo> todos = [];
 
-  void updateTodoState(List _todos) {
+  void updateTodoState(List<Todo> _todos) {
+    // Reorder todos
+    _todos = orderTodosByCompleted(_todos);
+
     setState(() {
       todos = _todos;
     });
+  }
+
+  List<Todo> orderTodosByCompleted(List<Todo> todos) {
+    if (todos.isEmpty) return [];
+
+    List<Todo> uncompletedTodos = [];
+    List<Todo> completedTodos = [];
+
+    for (int i = 0; i < todos.length; i++) {
+      if (todos[i].completed == 1) completedTodos.add(todos[i]);
+      if (todos[i].completed == 0) uncompletedTodos.add(todos[i]);
+    }
+
+    List<Todo> orderedTodos = List.of(uncompletedTodos);
+    orderedTodos.addAll(completedTodos);
+
+    return orderedTodos;
   }
 
   @override
@@ -47,6 +66,9 @@ class _MyHomePageState extends State<MyHomePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       Database _db = await setupDatabase();
       List<Todo> _todos = await getTodos(_db);
+
+      // Reorder todos
+      _todos = orderTodosByCompleted(_todos);
 
       if (_db != null && _todos != null) {
         setState(() {
