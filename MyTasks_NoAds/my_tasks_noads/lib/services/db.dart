@@ -1,10 +1,35 @@
+import 'dart:io';
+
+import 'package:ext_storage/ext_storage.dart';
 import 'package:my_tasks_noads/models/Todo.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:sqflite/sqflite.dart';
+
+Future<String> getPersistentDBPath() async {
+  try {
+    if (await Permission.storage.request().isGranted) {
+      String externalDirectoryPath =
+          await ExtStorage.getExternalStorageDirectory();
+      String directoryPath = "$externalDirectoryPath/simple_todo_persistent";
+      await (new Directory(directoryPath).create());
+      return "$directoryPath/simple_todo.db";
+    }
+
+    return null;
+  } catch (e) {
+    print("Error getting PersistentPath: $e");
+    return null;
+  }
+}
 
 Future<Database> setupDatabase() async {
   try {
-    String databasePath = await getDatabasesPath();
-    String path = databasePath + 'simple_todo.db';
+    String path = await getPersistentDBPath();
+
+    if (path == null) {
+      String databasePath = await getDatabasesPath();
+      path = databasePath + 'simple_todo.db';
+    }
 
     // NOTE: Boolean is not available, so 0 = False, 1 = True
     Database db = await openDatabase(path, version: 1,
